@@ -11,7 +11,7 @@ export async function POST(req: Request) {
 
     const { data: jeton } = await sb
       .from("jetons_action")
-      .select("*, demandes(*, profiles(nom_complet,email), types_conges(libelle))")
+      .select("*, demandes(*, profiles(nom_complet,email), types_conges(libelle,code))")
       .eq("token", token).single();
 
     if (!jeton) return NextResponse.json({ ok: false, error: "Lien invalide" }, { status: 404 });
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
         motif_refus: decision === "refusee" ? motif_refus : null,
       })
       .eq("id", demande.id).eq("statut", "en_attente")
-      .select("*, profiles(nom_complet,email), types_conges(libelle)")
+      .select("*, profiles(nom_complet,email), types_conges(libelle,code)")
       .single();
 
     if (!maj) return NextResponse.json({ ok: true, deja_traitee: true });
