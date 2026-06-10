@@ -10,8 +10,10 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [mdp, setMdp] = useState("");
   const [msg, setMsg] = useState("");
-  const [mode, setMode] = useState<"login" | "oubli">("login");
+  const [mode, setMode] = useState<"login" | "oubli" | "assist">("login");
   const [msgOubli, setMsgOubli] = useState("");
+  const [assist, setAssist] = useState({ nom: "", email: "", objet: "", message: "" });
+  const [msgAssist, setMsgAssist] = useState("");
 
   async function seConnecter() {
     setMsg("");
@@ -28,6 +30,20 @@ export default function LoginPage() {
     });
     if (error) setMsgOubli("Erreur : " + error.message);
     else setMsgOubli("Si cet email existe, un lien de réinitialisation vient d'être envoyé. Pensez à vérifier vos spams.");
+  }
+
+  async function envoyerAssist() {
+    setMsgAssist("");
+    if (!assist.nom.trim() || !assist.email.trim() || !assist.objet.trim() || !assist.message.trim()) {
+      setMsgAssist("Merci de remplir tous les champs."); return;
+    }
+    const res = await fetch("/api/assistance", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nom: assist.nom, email: assist.email, objet: assist.objet, message: assist.message }),
+    });
+    const j = await res.json();
+    if (j.ok) { setMsgAssist("Message envoyé ✅"); setAssist({ nom: "", email: "", objet: "", message: "" }); }
+    else setMsgAssist("Erreur : " + j.error);
   }
 
   return (
@@ -55,6 +71,10 @@ export default function LoginPage() {
                 <button style={lien} onClick={() => { setMode("oubli"); setMsgOubli(""); }}>
                   Mot de passe oublié ?</button>
               </p>
+              <p style={{ marginTop: 4 }}>
+                <button style={lien} onClick={() => { setMode("assist"); setMsgAssist(""); }}>
+                  Besoin d'aide ? Contacter l'assistance</button>
+              </p>
             </>
           )}
 
@@ -67,6 +87,26 @@ export default function LoginPage() {
               {msgOubli && <p style={{ color: "#16a34a", fontSize: 14 }}>{msgOubli}</p>}
               <p style={{ marginTop: 12 }}>
                 <button style={lien} onClick={() => { setMode("login"); setMsg(""); }}>
+                  ← Retour à la connexion</button>
+              </p>
+            </>
+          )}
+
+          {mode === "assist" && (
+            <>
+              <p style={{ color: "#666" }}>Décrivez votre problème, l'assistance vous répondra.</p>
+              <input style={input} placeholder="Votre nom" value={assist.nom}
+                onChange={(e) => setAssist({ ...assist, nom: e.target.value })} />
+              <input style={input} placeholder="Votre email" value={assist.email}
+                onChange={(e) => setAssist({ ...assist, email: e.target.value })} />
+              <input style={input} placeholder="Objet" value={assist.objet}
+                onChange={(e) => setAssist({ ...assist, objet: e.target.value })} />
+              <textarea style={{ ...input, minHeight: 90 }} placeholder="Votre message" value={assist.message}
+                onChange={(e) => setAssist({ ...assist, message: e.target.value })} />
+              <button style={btn} onClick={envoyerAssist}>Envoyer le message</button>
+              {msgAssist && <p style={{ fontSize: 14, color: msgAssist.startsWith("Erreur") ? "#dc2626" : "#16a34a" }}>{msgAssist}</p>}
+              <p style={{ marginTop: 12 }}>
+                <button style={lien} onClick={() => { setMode("login"); setMsgAssist(""); }}>
                   ← Retour à la connexion</button>
               </p>
             </>
