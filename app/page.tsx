@@ -331,4 +331,4 @@ const ligneDemande: React.CSSProperties = { display: "flex", justifyContent: "sp
 const pied: React.CSSProperties = { textAlign: "center", padding: 14, fontSize: 12, color: "#999" };
 const th: React.CSSProperties = { padding: "6px 8px", fontWeight: 600 };
 const td: React.CSSProperties = { padding: "6px 8px" };
-const errBox: React.CSSProperties = { background: "#fee2e2", color: "#b91c1c", padding: 10, borderRadius: 6, margin: "6px 0", fontSize: 14 };v
+const errBox: React.CSSProperties = { background: "#fee2e2", color: "#b91c1c", padding: 10, borderRadius: 6, margin: "6px 0", fontSize: 14 };
