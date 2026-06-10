@@ -254,6 +254,8 @@ export default function Accueil() {
         </div>
 
         <div style={{ textAlign: "right", margin: "8px 0" }}>
+          <a href="https://intranet-ndbs.vercel.app" style={{ ...lien, textDecoration: "none", marginRight: 16 }}>
+            ⌂ Retour à l'intranet</a>
           <button style={lien} onClick={() => getSupabase().auth.signOut().then(() => window.location.href = "/login")}>
             Déconnexion</button>
         </div>
