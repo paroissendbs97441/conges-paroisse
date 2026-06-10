@@ -28,6 +28,8 @@ export default function Accueil() {
   const [annulId, setAnnulId] = useState<string | null>(null);
   const [motifAnnul, setMotifAnnul] = useState("");
   const [msgAnnul, setMsgAnnul] = useState("");
+  const [mdpForm, setMdpForm] = useState({ mdp: "", mdp2: "" });
+  const [msgMdp, setMsgMdp] = useState("");
 
   useEffect(() => {
     getSupabase().auth.getUser().then(({ data }) => {
@@ -112,6 +114,15 @@ export default function Accueil() {
     const j = await res.json();
     if (j.ok) { setMsgAssist("Message envoyé ✅"); setAssist({ objet: "", message: "" }); }
     else setMsgAssist("Erreur : " + j.error);
+  }
+
+  async function changerMotDePasse() {
+    setMsgMdp("");
+    if (mdpForm.mdp.length < 6) { setMsgMdp("Le mot de passe doit faire au moins 6 caractères."); return; }
+    if (mdpForm.mdp !== mdpForm.mdp2) { setMsgMdp("Les deux mots de passe ne correspondent pas."); return; }
+    const { error } = await getSupabase().auth.updateUser({ password: mdpForm.mdp });
+    if (error) setMsgMdp("Erreur : " + error.message);
+    else { setMsgMdp("Mot de passe modifié ✅"); setMdpForm({ mdp: "", mdp2: "" }); }
   }
 
   async function annuler(demande_id: string) {
@@ -317,6 +328,18 @@ export default function Accueil() {
             onChange={(e) => setAssist({ ...assist, message: e.target.value })} />
           <button style={btn} onClick={envoyerAssistance}>Envoyer le message</button>
           {msgAssist && <p>{msgAssist}</p>}
+        </div>
+
+        <div style={carte}>
+          <h2 style={{ fontSize: 17 }}>Changer mon mot de passe</h2>
+          <label style={lbl}>Nouveau mot de passe</label>
+          <input style={inp} type="password" value={mdpForm.mdp}
+            onChange={(e) => setMdpForm({ ...mdpForm, mdp: e.target.value })} />
+          <label style={lbl}>Confirmer le nouveau mot de passe</label>
+          <input style={inp} type="password" value={mdpForm.mdp2}
+            onChange={(e) => setMdpForm({ ...mdpForm, mdp2: e.target.value })} />
+          <button style={btn} onClick={changerMotDePasse}>Modifier le mot de passe</button>
+          {msgMdp && <p>{msgMdp}</p>}
         </div>
       </div>
 
