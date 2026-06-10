@@ -18,7 +18,19 @@ export async function POST(req: Request) {
 
     const demande = jeton.demandes;
     if (demande.statut !== "en_attente") {
-      return NextResponse.json({ ok: true, deja_traitee: true, statut: demande.statut });
+      let valideur = null;
+      if (demande.resolu_par) {
+        const { data: app } = await sb
+          .from("approbateurs").select("nom").eq("id", demande.resolu_par).single();
+        valideur = app?.nom ?? null;
+      }
+      return NextResponse.json({
+        ok: true, deja_traitee: true,
+        statut: demande.statut,
+        resolu_le: demande.resolu_le,
+        valideur,
+        motif_refus: demande.motif_refus ?? null,
+      });
     }
     if (decision === "refusee" && !motif_refus?.trim()) {
       return NextResponse.json({ ok: false, error: "Motif de refus obligatoire" }, { status: 400 });
