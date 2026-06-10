@@ -3,9 +3,7 @@
 export const dynamic = "force-dynamic";
 import { useEffect, useState } from "react";
 import { getSupabase } from "../lib/supabaseClient";
-import { calculerNbJours, calculerDateReprise } from "../lib/dateConges";
-
-type Moment = "journee" | "matin" | "apresmidi";
+import { calculerNbJoursCases, calculerDateRepriseCases, validerDemande, SaisieDemi } from "../lib/dateConges";
 
 function frDate(s: string): string {
   if (!s) return "—";
@@ -20,8 +18,8 @@ export default function Accueil() {
   const [types, setTypes] = useState<any[]>([]);
   const [demandes, setDemandes] = useState<any[]>([]);
   const [form, setForm] = useState({
-    type_conge_id: "", date_debut: "", moment_debut: "journee" as Moment,
-    date_fin: "", moment_fin: "journee" as Moment, motif: "",
+    type_conge_id: "", date_debut: "", date_fin: "", motif: "",
+    debutMatin: true, debutAprem: true, finMatin: true, finAprem: true,
   });
   const [msg, setMsg] = useState("");
 
@@ -43,23 +41,32 @@ export default function Accueil() {
     setDemandes(data ?? []);
   }
 
-  const nbJours = (form.date_debut && form.date_fin)
-    ? calculerNbJours(form.date_debut, form.moment_debut, form.date_fin, form.moment_fin) : 0;
-  const dateReprise = (form.date_fin)
-    ? calculerDateReprise(form.date_fin, form.moment_fin) : "";
+  const saisie: SaisieDemi = {
+    debutMatin: form.debutMatin, debutAprem: form.debutAprem,
+    finMatin: form.finMatin, finAprem: form.finAprem,
+  };
+  const erreurValidation = (form.date_debut && form.date_fin)
+    ? validerDemande(form.date_debut, form.date_fin, saisie) : null;
+  const nbJours = (form.date_debut && form.date_fin && !erreurValidation)
+    ? calculerNbJoursCases(form.date_debut, form.date_fin, saisie) : 0;
+  const dateReprise = (form.date_fin && !erreurValidation)
+    ? calculerDateRepriseCases(form.date_fin, saisie) : "";
 
   async function envoyer() {
     setMsg("");
-    if (!form.type_conge_id || !form.date_debut || !form.date_fin) {
-      setMsg("Merci de remplir le type et les dates."); return;
-    }
-    if (nbJours <= 0) { setMsg("Les dates ne sont pas valides."); return; }
+    if (!form.type_conge_id) { setMsg("Merci de choisir un type de congé."); return; }
+    const err = validerDemande(form.date_debut, form.date_fin, saisie);
+    if (err) { setMsg(err); return; }
+    if (nbJours <= 0) { setMsg("La durée calculée est nulle, vérifiez votre saisie."); return; }
+
     const res = await fetch("/api/demandes", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         salarie_id: user.id, type_conge_id: Number(form.type_conge_id),
-        date_debut: form.date_debut, moment_debut: form.moment_debut,
-        date_fin: form.date_fin, moment_fin: form.moment_fin,
+        date_debut: form.date_debut,
+        moment_debut: form.debutMatin ? "journee" : "apresmidi",
+        date_fin: form.date_fin,
+        moment_fin: form.finAprem ? "journee" : "matin",
         nb_jours: nbJours, date_reprise: dateReprise, motif: form.motif,
       }),
     });
@@ -67,8 +74,8 @@ export default function Accueil() {
     if (j.ok) {
       setMsg("Demande envoyée ✅");
       charger(user.id);
-      setForm({ type_conge_id: "", date_debut: "", moment_debut: "journee",
-        date_fin: "", moment_fin: "journee", motif: "" });
+      setForm({ type_conge_id: "", date_debut: "", date_fin: "", motif: "",
+        debutMatin: true, debutAprem: true, finMatin: true, finAprem: true });
     } else setMsg("Erreur : " + j.error);
   }
 
@@ -79,6 +86,13 @@ export default function Accueil() {
   } as any)[s];
 
   if (!user) return <p style={{ padding: 40 }}>Chargement…</p>;
+
+  const Coche = ({ checked, onChange, label }: any) => (
+    <label style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 14, fontSize: 14, cursor: "pointer" }}>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      {label}
+    </label>
+  );
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
@@ -112,28 +126,33 @@ export default function Accueil() {
           </select>
 
           <label style={lbl}>Date de début</label>
-          <div style={ligne2}>
-            <input style={inp} type="date" value={form.date_debut}
-              onChange={(e) => setForm({ ...form, date_debut: e.target.value })} />
-            <select style={inp} value={form.moment_debut}
-              onChange={(e) => setForm({ ...form, moment_debut: e.target.value as Moment })}>
-              <option value="journee">Journée entière</option>
-              <option value="apresmidi">Après-midi seulement</option>
-            </select>
+          <input style={inp} type="date" value={form.date_debut}
+            onChange={(e) => setForm({ ...form, date_debut: e.target.value })} />
+          <div style={{ margin: "0 0 12px" }}>
+            <Coche checked={form.debutMatin} label="Matin"
+              onChange={(v: boolean) => setForm({ ...form, debutMatin: v })} />
+            <Coche checked={form.debutAprem} label="Après-midi"
+              onChange={(v: boolean) => setForm({ ...form, debutAprem: v })} />
+            <span style={{ fontSize: 12, color: "#888" }}>(cochez les deux = journée entière)</span>
           </div>
 
           <label style={lbl}>Date de fin</label>
-          <div style={ligne2}>
-            <input style={inp} type="date" value={form.date_fin}
-              onChange={(e) => setForm({ ...form, date_fin: e.target.value })} />
-            <select style={inp} value={form.moment_fin}
-              onChange={(e) => setForm({ ...form, moment_fin: e.target.value as Moment })}>
-              <option value="journee">Journée entière</option>
-              <option value="matin">Matin seulement</option>
-            </select>
+          <input style={inp} type="date" value={form.date_fin}
+            onChange={(e) => setForm({ ...form, date_fin: e.target.value })} />
+          <div style={{ margin: "0 0 12px" }}>
+            <Coche checked={form.finMatin} label="Matin"
+              onChange={(v: boolean) => setForm({ ...form, finMatin: v })} />
+            <Coche checked={form.finAprem} label="Après-midi"
+              onChange={(v: boolean) => setForm({ ...form, finAprem: v })} />
+            <span style={{ fontSize: 12, color: "#888" }}>(cochez les deux = journée entière)</span>
           </div>
 
-          {(form.date_debut && form.date_fin) && (
+          {erreurValidation && (
+            <div style={{ background: "#fee2e2", color: "#b91c1c", padding: 10, borderRadius: 6, margin: "6px 0", fontSize: 14 }}>
+              {erreurValidation}
+            </div>
+          )}
+          {(form.date_debut && form.date_fin && !erreurValidation) && (
             <div style={{ background: "#eff6ff", padding: 10, borderRadius: 6, margin: "6px 0", fontSize: 14 }}>
               <b>Nombre de jours :</b> {nbJours} &nbsp;·&nbsp;
               <b>Reprise du travail le :</b> {frDate(dateReprise)}
@@ -143,7 +162,8 @@ export default function Accueil() {
           <label style={lbl}>Motif (facultatif)</label>
           <textarea style={inp} value={form.motif}
             onChange={(e) => setForm({ ...form, motif: e.target.value })} />
-          <button style={btn} onClick={envoyer}>Envoyer la demande</button>
+          <button style={{ ...btn, opacity: erreurValidation ? 0.5 : 1 }}
+            disabled={!!erreurValidation} onClick={envoyer}>Envoyer la demande</button>
           {msg && <p>{msg}</p>}
         </div>
 
@@ -175,8 +195,7 @@ export default function Accueil() {
 }
 
 const carte: React.CSSProperties = { background: "#fff", padding: 20, borderRadius: 12, margin: "16px 0", boxShadow: "0 1px 4px rgba(0,0,0,.08)" };
-const inp: React.CSSProperties = { display: "block", width: "100%", padding: 9, margin: "4px 0 10px", borderRadius: 6, border: "1px solid #ccc", boxSizing: "border-box" };
-const ligne2: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 };
+const inp: React.CSSProperties = { display: "block", width: "100%", padding: 9, margin: "4px 0 6px", borderRadius: 6, border: "1px solid #ccc", boxSizing: "border-box" };
 const lbl: React.CSSProperties = { fontSize: 13, color: "#555" };
 const btn: React.CSSProperties = { padding: "10px 16px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 15 };
 const lien: React.CSSProperties = { background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontSize: 14 };
