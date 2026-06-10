@@ -17,6 +17,7 @@ export default function Accueil() {
   const [profil, setProfil] = useState<any>(null);
   const [types, setTypes] = useState<any[]>([]);
   const [demandes, setDemandes] = useState<any[]>([]);
+  const [soldes, setSoldes] = useState<any[]>([]);
   const [form, setForm] = useState({
     type_conge_id: "", date_debut: "", date_fin: "", motif: "",
     debutMatin: true, debutAprem: true, finMatin: true, finAprem: true,
@@ -30,6 +31,8 @@ export default function Accueil() {
       charger(data.user.id);
       getSupabase().from("profiles").select("nom_complet,poste").eq("id", data.user.id).single()
         .then(({ data: p }) => setProfil(p));
+      getSupabase().from("soldes_lisibles").select("*").eq("salarie_id", data.user.id)
+        .then(({ data: s }) => setSoldes(s ?? []));
     });
     getSupabase().from("types_conges").select("*").then(({ data }) => setTypes(data ?? []));
   }, []);
@@ -52,12 +55,20 @@ export default function Accueil() {
   const dateReprise = (form.date_fin && !erreurValidation)
     ? calculerDateRepriseCases(form.date_fin, saisie) : "";
 
+  const codeChoisi = types.find((t) => String(t.id) === form.type_conge_id)?.code;
+  const soldeType = codeChoisi ? soldes.find((s) => s.code_type === codeChoisi) : null;
+  const depasseSolde = soldeType && nbJours > Number(soldeType.solde_theorique);
+
   async function envoyer() {
     setMsg("");
     if (!form.type_conge_id) { setMsg("Merci de choisir un type de congé."); return; }
     const err = validerDemande(form.date_debut, form.date_fin, saisie);
     if (err) { setMsg(err); return; }
     if (nbJours <= 0) { setMsg("La durée calculée est nulle, vérifiez votre saisie."); return; }
+    if (depasseSolde) {
+      setMsg(`Solde insuffisant : vous demandez ${nbJours} jour(s) mais votre solde théorique de "${soldeType.type_conge}" est de ${soldeType.solde_theorique} jour(s).`);
+      return;
+    }
 
     const res = await fetch("/api/demandes", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -74,6 +85,8 @@ export default function Accueil() {
     if (j.ok) {
       setMsg("Demande envoyée ✅");
       charger(user.id);
+      getSupabase().from("soldes_lisibles").select("*").eq("salarie_id", user.id)
+        .then(({ data: s }) => setSoldes(s ?? []));
       setForm({ type_conge_id: "", date_debut: "", date_fin: "", motif: "",
         debutMatin: true, debutAprem: true, finMatin: true, finAprem: true });
     } else setMsg("Erreur : " + j.error);
@@ -117,6 +130,34 @@ export default function Accueil() {
             Déconnexion</button>
         </div>
 
+        {soldes.length > 0 && (
+          <div style={carte}>
+            <h2 style={{ fontSize: 17 }}>Mes compteurs de congés</h2>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: "#eff3f8", textAlign: "left" }}>
+                    <th style={th}>Type</th><th style={th}>Acquis</th><th style={th}>Pris</th>
+                    <th style={th}>En cours</th><th style={th}>Solde théorique</th><th style={th}>Solde réel</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {soldes.map((s, i) => (
+                    <tr key={i} style={{ borderBottom: "1px solid #eee" }}>
+                      <td style={td}>{s.type_conge}</td>
+                      <td style={td}>{s.acquis}</td>
+                      <td style={td}>{s.pris}</td>
+                      <td style={td}>{s.en_cours}</td>
+                      <td style={{ ...td, fontWeight: 600 }}>{s.solde_theorique}</td>
+                      <td style={td}>{s.solde_reel}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         <div style={carte}>
           <h2 style={{ fontSize: 17 }}>Nouvelle demande</h2>
           <select style={inp} value={form.type_conge_id}
@@ -148,22 +189,30 @@ export default function Accueil() {
           </div>
 
           {erreurValidation && (
-            <div style={{ background: "#fee2e2", color: "#b91c1c", padding: 10, borderRadius: 6, margin: "6px 0", fontSize: 14 }}>
-              {erreurValidation}
-            </div>
+            <div style={errBox}>{erreurValidation}</div>
           )}
           {(form.date_debut && form.date_fin && !erreurValidation) && (
             <div style={{ background: "#eff6ff", padding: 10, borderRadius: 6, margin: "6px 0", fontSize: 14 }}>
               <b>Nombre de jours :</b> {nbJours} &nbsp;·&nbsp;
               <b>Reprise du travail le :</b> {frDate(dateReprise)}
+              {soldeType && (
+                <div style={{ marginTop: 4, color: depasseSolde ? "#b91c1c" : "#555" }}>
+                  Solde théorique {soldeType.type_conge} : {soldeType.solde_theorique} j
+                </div>
+              )}
+            </div>
+          )}
+          {depasseSolde && (
+            <div style={errBox}>
+              Solde insuffisant : {nbJours} j demandés &gt; {soldeType.solde_theorique} j disponibles.
             </div>
           )}
 
           <label style={lbl}>Motif (facultatif)</label>
           <textarea style={inp} value={form.motif}
             onChange={(e) => setForm({ ...form, motif: e.target.value })} />
-          <button style={{ ...btn, opacity: erreurValidation ? 0.5 : 1 }}
-            disabled={!!erreurValidation} onClick={envoyer}>Envoyer la demande</button>
+          <button style={{ ...btn, opacity: (erreurValidation || depasseSolde) ? 0.5 : 1 }}
+            disabled={!!erreurValidation || !!depasseSolde} onClick={envoyer}>Envoyer la demande</button>
           {msg && <p>{msg}</p>}
         </div>
 
@@ -201,3 +250,6 @@ const btn: React.CSSProperties = { padding: "10px 16px", background: "#2563eb", 
 const lien: React.CSSProperties = { background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontSize: 14 };
 const ligneDemande: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid #eee" };
 const pied: React.CSSProperties = { textAlign: "center", padding: 14, fontSize: 12, color: "#999" };
+const th: React.CSSProperties = { padding: "6px 8px", fontWeight: 600 };
+const td: React.CSSProperties = { padding: "6px 8px" };
+const errBox: React.CSSProperties = { background: "#fee2e2", color: "#b91c1c", padding: 10, borderRadius: 6, margin: "6px 0", fontSize: 14 };
