@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 import { useEffect, useState } from "react";
 import { getSupabase } from "../lib/supabaseClient";
-import { calculerNbJoursCases, calculerDateRepriseCases, validerDemande, SaisieDemi } from "../lib/dateConges";
+import { calculerNbJoursCases, calculerDateRepriseCases, validerDemande, SaisieDemi, definirJoursFeries } from "../lib/dateConges";
 
 function frDate(s: string): string {
   if (!s) return "—";
@@ -40,6 +40,9 @@ export default function Accueil() {
         .then(({ data: s }) => setSoldes(s ?? []));
     });
     getSupabase().from("types_conges").select("*").then(({ data }) => setTypes(data ?? []));
+    getSupabase().from("jours_feries").select("date_ferie").then(({ data }) => {
+      definirJoursFeries((data ?? []).map((f: any) => f.date_ferie));
+    });
   }, []);
 
   async function charger(uid: string) {
