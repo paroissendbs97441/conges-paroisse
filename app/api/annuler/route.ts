@@ -55,7 +55,8 @@ export async function POST(req: Request) {
     const destinataires = [
       ...(approbateurs ?? []).map((a) => a.email),
       ...(cpae ?? []).map((m) => m.email),
-    ];
+      d.profiles?.email,
+    ].filter(Boolean);
 
     if (destinataires.length > 0) {
       await envoyerMail({
