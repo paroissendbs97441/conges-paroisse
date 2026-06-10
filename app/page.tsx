@@ -31,6 +31,8 @@ export default function Accueil() {
   const [msgAnnul, setMsgAnnul] = useState("");
   const [mdpForm, setMdpForm] = useState({ mdp: "", mdp2: "" });
   const [msgMdp, setMsgMdp] = useState("");
+  const [filtreAnnee, setFiltreAnnee] = useState("");
+  const [filtreMois, setFiltreMois] = useState("");
 
   useEffect(() => {
     getSupabase().auth.getUser().then(({ data }) => {
@@ -73,7 +75,24 @@ export default function Accueil() {
   const ymdAujourdhui = new Date().toISOString().slice(0, 10);
   const estPassee = (d: any) => d.date_fin < ymdAujourdhui;
   const actives = demandes.filter((d) => d.statut !== "annulee" && !estPassee(d));
-  const historique = demandes.filter((d) => d.statut === "annulee" || estPassee(d));
+  const historiqueBrut = demandes.filter((d) => d.statut === "annulee" || estPassee(d));
+
+  const anneesDispo = Array.from(
+    new Set(historiqueBrut.map((d) => (d.cree_le || "").slice(0, 4)).filter(Boolean))
+  ).sort().reverse();
+
+  const moisNoms = ["01 - Janvier", "02 - Février", "03 - Mars", "04 - Avril", "05 - Mai", "06 - Juin",
+    "07 - Juillet", "08 - Août", "09 - Septembre", "10 - Octobre", "11 - Novembre", "12 - Décembre"];
+
+  const historique = historiqueBrut
+    .filter((d) => {
+      const annee = (d.cree_le || "").slice(0, 4);
+      const mois = (d.cree_le || "").slice(5, 7);
+      if (filtreAnnee && annee !== filtreAnnee) return false;
+      if (filtreMois && mois !== filtreMois) return false;
+      return true;
+    })
+    .sort((a, b) => (b.cree_le || "").localeCompare(a.cree_le || ""));
 
   async function envoyer() {
     setMsg("");
@@ -355,8 +374,27 @@ export default function Accueil() {
         {onglet === "historique" && (
           <div style={carte}>
             <h2 style={{ fontSize: 17 }}>Historique des congés</h2>
-            <p style={{ color: "#777", fontSize: 13 }}>Congés passés et demandes annulées.</p>
-            {historique.length === 0 && <p style={{ color: "#777" }}>Aucun congé dans l'historique.</p>}
+            <p style={{ color: "#777", fontSize: 13 }}>Congés passés et demandes annulées, triés par date de demande (plus récente d'abord).</p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "8px 0 12px" }}>
+              <select style={{ ...inp, width: "auto", margin: 0 }} value={filtreAnnee}
+                onChange={(e) => setFiltreAnnee(e.target.value)}>
+                <option value="">Toutes les années</option>
+                {anneesDispo.map((a) => <option key={a} value={a}>{a}</option>)}
+              </select>
+              <select style={{ ...inp, width: "auto", margin: 0 }} value={filtreMois}
+                onChange={(e) => setFiltreMois(e.target.value)}>
+                <option value="">Tous les mois</option>
+                {moisNoms.map((label, i) => {
+                  const val = String(i + 1).padStart(2, "0");
+                  return <option key={val} value={val}>{label}</option>;
+                })}
+              </select>
+              {(filtreAnnee || filtreMois) && (
+                <button style={lien} onClick={() => { setFiltreAnnee(""); setFiltreMois(""); }}>
+                  Réinitialiser</button>
+              )}
+            </div>
+            {historique.length === 0 && <p style={{ color: "#777" }}>Aucun congé pour ce filtre.</p>}
             {historique.map((d) => ligneDemandeAffichage(d, false))}
           </div>
         )}
