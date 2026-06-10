@@ -25,6 +25,9 @@ export default function Accueil() {
   const [msg, setMsg] = useState("");
   const [assist, setAssist] = useState({ objet: "", message: "" });
   const [msgAssist, setMsgAssist] = useState("");
+  const [annulId, setAnnulId] = useState<string | null>(null);
+  const [motifAnnul, setMotifAnnul] = useState("");
+  const [msgAnnul, setMsgAnnul] = useState("");
 
   useEffect(() => {
     getSupabase().auth.getUser().then(({ data }) => {
@@ -108,10 +111,34 @@ export default function Accueil() {
     else setMsgAssist("Erreur : " + j.error);
   }
 
+  async function annuler(demande_id: string) {
+    setMsgAnnul("");
+    if (!motifAnnul.trim()) { setMsgAnnul("Merci d'indiquer un motif d'annulation."); return; }
+    const res = await fetch("/api/annuler", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ demande_id, salarie_id: user.id, motif_annulation: motifAnnul }),
+    });
+    const j = await res.json();
+    if (j.ok) {
+      setAnnulId(null); setMotifAnnul("");
+      charger(user.id);
+      getSupabase().from("soldes_lisibles").select("*").eq("salarie_id", user.id)
+        .then(({ data: s }) => setSoldes(s ?? []));
+    } else setMsgAnnul("Erreur : " + j.error);
+  }
+
+  function estAnnulable(d: any): boolean {
+    if (d.statut !== "en_attente" && d.statut !== "validee") return false;
+    const debut = new Date(d.date_debut + "T00:00:00");
+    const limite = new Date(debut.getTime() - 24 * 60 * 60 * 1000);
+    return new Date() <= limite;
+  }
+
   const badge = (s: string) => ({
     en_attente: { t: "En attente", c: "#b45309", b: "#fef3c7" },
     validee: { t: "Validée", c: "#15803d", b: "#dcfce7" },
     refusee: { t: "Refusée", c: "#b91c1c", b: "#fee2e2" },
+    annulee: { t: "Annulée", c: "#6b7280", b: "#f3f4f6" },
   } as any)[s];
 
   if (!user) return <p style={{ padding: 40 }}>Chargement…</p>;
@@ -238,16 +265,39 @@ export default function Accueil() {
           {demandes.map((d) => {
             const bg = badge(d.statut);
             return (
-              <div key={d.id} style={ligneDemande}>
-                <div>
-                  <b>{d.types_conges?.libelle}</b><br />
-                  <span style={{ color: "#555", fontSize: 14 }}>
-                    Du {frDate(d.date_debut)} au {frDate(d.date_fin)} · {d.nb_jours} j · reprise {frDate(d.date_reprise)}</span>
-                  {d.statut === "refusee" && d.motif_refus &&
-                    <div style={{ color: "#b91c1c", fontSize: 13 }}>Motif refus : {d.motif_refus}</div>}
+              <div key={d.id} style={{ padding: "12px 0", borderBottom: "1px solid #eee" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <b>{d.types_conges?.libelle}</b><br />
+                    <span style={{ color: "#555", fontSize: 14 }}>
+                      Du {frDate(d.date_debut)} au {frDate(d.date_fin)} · {d.nb_jours} j · reprise {frDate(d.date_reprise)}</span>
+                    {d.statut === "refusee" && d.motif_refus &&
+                      <div style={{ color: "#b91c1c", fontSize: 13 }}>Motif refus : {d.motif_refus}</div>}
+                    {d.statut === "annulee" && d.motif_annulation &&
+                      <div style={{ color: "#6b7280", fontSize: 13 }}>Motif annulation : {d.motif_annulation}</div>}
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <span style={{ background: bg.b, color: bg.c, padding: "4px 10px",
+                      borderRadius: 20, fontSize: 13, fontWeight: 600 }}>{bg.t}</span>
+                    {estAnnulable(d) && annulId !== d.id && (
+                      <div><button style={{ ...lien, color: "#b45309", marginTop: 6 }}
+                        onClick={() => { setAnnulId(d.id); setMotifAnnul(""); setMsgAnnul(""); }}>
+                        Annuler</button></div>
+                    )}
+                  </div>
                 </div>
-                <span style={{ background: bg.b, color: bg.c, padding: "4px 10px",
-                  borderRadius: 20, fontSize: 13, fontWeight: 600 }}>{bg.t}</span>
+                {annulId === d.id && (
+                  <div style={{ background: "#fff7ed", padding: 10, borderRadius: 6, marginTop: 8 }}>
+                    <label style={lbl}>Motif de l'annulation (obligatoire)</label>
+                    <textarea style={inp} value={motifAnnul}
+                      onChange={(e) => setMotifAnnul(e.target.value)} />
+                    <button style={{ ...btn, background: "#b45309" }}
+                      onClick={() => annuler(d.id)}>Confirmer l'annulation</button>
+                    <button style={{ ...lien, marginLeft: 10 }}
+                      onClick={() => { setAnnulId(null); setMsgAnnul(""); }}>Retour</button>
+                    {msgAnnul && <p style={{ color: "#b91c1c", fontSize: 13 }}>{msgAnnul}</p>}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -281,4 +331,4 @@ const ligneDemande: React.CSSProperties = { display: "flex", justifyContent: "sp
 const pied: React.CSSProperties = { textAlign: "center", padding: 14, fontSize: 12, color: "#999" };
 const th: React.CSSProperties = { padding: "6px 8px", fontWeight: 600 };
 const td: React.CSSProperties = { padding: "6px 8px" };
-const errBox: React.CSSProperties = { background: "#fee2e2", color: "#b91c1c", padding: 10, borderRadius: 6, margin: "6px 0", fontSize: 14 };
+const errBox: React.CSSProperties = { background: "#fee2e2", color: "#b91c1c", padding: 10, borderRadius: 6, margin: "6px 0", fontSize: 14 };v
