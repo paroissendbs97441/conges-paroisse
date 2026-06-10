@@ -23,6 +23,8 @@ export default function Accueil() {
     debutMatin: true, debutAprem: true, finMatin: true, finAprem: true,
   });
   const [msg, setMsg] = useState("");
+  const [assist, setAssist] = useState({ objet: "", message: "" });
+  const [msgAssist, setMsgAssist] = useState("");
 
   useEffect(() => {
     getSupabase().auth.getUser().then(({ data }) => {
@@ -90,6 +92,20 @@ export default function Accueil() {
       setForm({ type_conge_id: "", date_debut: "", date_fin: "", motif: "",
         debutMatin: true, debutAprem: true, finMatin: true, finAprem: true });
     } else setMsg("Erreur : " + j.error);
+  }
+
+  async function envoyerAssistance() {
+    setMsgAssist("");
+    if (!assist.objet.trim() || !assist.message.trim()) {
+      setMsgAssist("Merci de remplir l'objet et le message."); return;
+    }
+    const res = await fetch("/api/assistance", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ salarie_id: user.id, objet: assist.objet, message: assist.message }),
+    });
+    const j = await res.json();
+    if (j.ok) { setMsgAssist("Message envoyé ✅"); setAssist({ objet: "", message: "" }); }
+    else setMsgAssist("Erreur : " + j.error);
   }
 
   const badge = (s: string) => ({
@@ -235,6 +251,19 @@ export default function Accueil() {
               </div>
             );
           })}
+        </div>
+
+        <div style={carte}>
+          <h2 style={{ fontSize: 17 }}>Contact d'assistance</h2>
+          <p style={{ color: "#666", fontSize: 14 }}>Une question, un souci (mot de passe, erreur…) ? Écrivez-nous.</p>
+          <label style={lbl}>Objet</label>
+          <input style={inp} value={assist.objet}
+            onChange={(e) => setAssist({ ...assist, objet: e.target.value })} />
+          <label style={lbl}>Message</label>
+          <textarea style={{ ...inp, minHeight: 90 }} value={assist.message}
+            onChange={(e) => setAssist({ ...assist, message: e.target.value })} />
+          <button style={btn} onClick={envoyerAssistance}>Envoyer le message</button>
+          {msgAssist && <p>{msgAssist}</p>}
         </div>
       </div>
 
