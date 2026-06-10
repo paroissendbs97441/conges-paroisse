@@ -29,11 +29,28 @@ export default function ActionPage() {
     else setResultat("Erreur : " + (j.error ?? "inconnue"));
   }
 
+  const stBtn = { display: "block", width: "100%", padding: 12, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 15, margin: "10px 0" };
+
   return (
     <div style={{ maxWidth: 460, margin: "60px auto", background: "#fff", padding: 28, borderRadius: 12, boxShadow: "0 1px 4px rgba(0,0,0,.1)" }}>
       <h1 style={{ fontSize: 21 }}>Traitement d'une demande de congés</h1>
       {etat === "choix" && (
         <>
           <p style={{ color: "#555" }}>Une seule approbation suffit. Choisissez :</p>
-          <button style={{ display: "block", width: "100%", padding: 12, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 15, margin: "10px 0", background: "#16a34a" }} disabled={enCours} onClick={() => agir("validee")}>Valider la demande</button>
-          <button style={{ display: "block", width: "100%", padding: 12, color: "#fff",
+          <button style={{ ...stBtn, background: "#16a34a" }} disabled={enCours} onClick={() => agir("validee")}>Valider la demande</button>
+          <button style={{ ...stBtn, background: "#dc2626" }} disabled={enCours} onClick={() => setEtat("refus")}>Refuser la demande</button>
+        </>
+      )}
+      {etat === "refus" && (
+        <>
+          <p>Indiquez le motif du refus :</p>
+          <textarea style={{ display: "block", width: "100%", padding: 9, margin: "8px 0", borderRadius: 6, border: "1px solid #ccc", boxSizing: "border-box", minHeight: 80 }} value={motifRefus} onChange={(e) => setMotifRefus(e.target.value)} />
+          <button style={{ ...stBtn, background: "#dc2626" }} disabled={enCours} onClick={() => agir("refusee")}>Confirmer le refus</button>
+          <button style={{ background: "none", border: "none", color: "#2563eb", cursor: "pointer", fontSize: 14 }} onClick={() => setEtat("choix")}>Retour</button>
+        </>
+      )}
+      {etat === "fini" && <p style={{ fontSize: 16 }}>{resultat}</p>}
+      {etat !== "fini" && resultat && <p style={{ color: "#dc2626" }}>{resultat}</p>}
+    </div>
+  );
+}
