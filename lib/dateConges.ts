@@ -22,12 +22,8 @@ function estWeekend(d: Date): boolean {
   return j === 0 || j === 6;
 }
 
-// Liste effectivement utilisée par les calculs.
-// Par défaut = la liste en dur (secours), mais la page la remplace
-// au démarrage avec les jours fériés chargés depuis Supabase.
 let FERIES_ACTIFS: string[] = [...JOURS_FERIES];
 
-// Permet à l'app de fournir les jours fériés issus de la base.
 export function definirJoursFeries(dates: string[]) {
   if (dates && dates.length > 0) FERIES_ACTIFS = dates;
 }
@@ -44,7 +40,6 @@ function ajouterJours(d: Date, n: number): Date {
   return r;
 }
 
-// Nombre de jours ouvrés de congé, demi-journées comprises.
 export function calculerNbJours(
   debut: string, momentDebut: Moment,
   fin: string, momentFin: Moment
@@ -72,7 +67,6 @@ export function calculerNbJours(
   return total;
 }
 
-// Date de reprise du travail (premier moment travaillé après le congé).
 export function calculerDateReprise(fin: string, momentFin: Moment): string {
   const dFin = new Date(fin + "T00:00:00Z");
   if (momentFin === "matin") return ymd(dFin);
@@ -103,6 +97,10 @@ export function validerDemande(
   if (!debut || !fin) return "Merci de renseigner les deux dates.";
   const dDebut = new Date(debut + "T00:00:00Z");
   const dFin = new Date(fin + "T00:00:00Z");
+  // La date de début doit être au plus tôt demain (pas de congé dans le passé ni le jour même)
+  const aujourdhui = new Date();
+  const demain = new Date(Date.UTC(aujourdhui.getFullYear(), aujourdhui.getMonth(), aujourdhui.getDate() + 1));
+  if (dDebut < demain) return "La date de début doit être au plus tôt demain (pas de congé dans le passé ni le jour même).";
   if (dFin < dDebut) return "La date de fin ne peut pas être antérieure à la date de début.";
   if (!s.debutMatin && !s.debutAprem) return "Cochez au moins matin ou après-midi pour le début.";
   if (!s.finMatin && !s.finAprem) return "Cochez au moins matin ou après-midi pour la fin.";
