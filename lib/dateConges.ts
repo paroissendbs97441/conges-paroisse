@@ -95,3 +95,67 @@ export function calculerDateReprise(fin: string, momentFin: Moment): string {
   while (!estOuvre(r)) r = ajouterJours(r, 1);
   return ymd(r);
 }
+
+// ============================================================
+// V2 — Calcul basé sur les cases à cocher Matin / Après-midi
+// ============================================================
+
+function momentDepuisCases(matin: boolean, aprem: boolean): Moment | null {
+  if (matin && aprem) return "journee";
+  if (matin && !aprem) return "matin";
+  if (!matin && aprem) return "apresmidi";
+  return null;
+}
+
+export type SaisieDemi = {
+  debutMatin: boolean; debutAprem: boolean;
+  finMatin: boolean; finAprem: boolean;
+};
+
+export function validerDemande(
+  debut: string, fin: string, s: SaisieDemi
+): string | null {
+  if (!debut || !fin) return "Merci de renseigner les deux dates.";
+  const dDebut = new Date(debut + "T00:00:00Z");
+  const dFin = new Date(fin + "T00:00:00Z");
+  if (dFin < dDebut) return "La date de fin ne peut pas être antérieure à la date de début.";
+  if (!s.debutMatin && !s.debutAprem) return "Cochez au moins matin ou après-midi pour le début.";
+  if (!s.finMatin && !s.finAprem) return "Cochez au moins matin ou après-midi pour la fin.";
+  if (ymd(dDebut) === ymd(dFin)) {
+    const matin = s.debutMatin && s.finMatin;
+    const aprem = s.debutAprem && s.finAprem;
+    if (!matin && !aprem && !(s.debutMatin && s.finAprem)) {
+      return "La sélection matin/après-midi est incohérente pour une même journée.";
+    }
+  }
+  return null;
+}
+
+export function calculerNbJoursCases(
+  debut: string, fin: string, s: SaisieDemi
+): number {
+  const dDebut = new Date(debut + "T00:00:00Z");
+  const dFin = new Date(fin + "T00:00:00Z");
+  if (dFin < dDebut) return 0;
+  if (ymd(dDebut) === ymd(dFin)) {
+    if (!estOuvre(dDebut)) return 0;
+    const matin = s.debutMatin && s.finMatin;
+    const aprem = s.debutAprem && s.finAprem;
+    let jour = 0;
+    if (matin) jour += 0.5;
+    if (aprem) jour += 0.5;
+    if (s.debutMatin && s.finAprem) jour = 1;
+    return jour;
+  }
+  const mDebut = momentDepuisCases(s.debutMatin, s.debutAprem);
+  const mFin = momentDepuisCases(s.finMatin, s.finAprem);
+  if (!mDebut || !mFin) return 0;
+  const momentDebut: Moment = (s.debutMatin ? "journee" : "apresmidi");
+  const momentFin: Moment = (s.finAprem ? "journee" : "matin");
+  return calculerNbJours(debut, momentDebut, fin, momentFin);
+}
+
+export function calculerDateRepriseCases(fin: string, s: SaisieDemi): string {
+  const momentFin: Moment = (s.finAprem ? "journee" : "matin");
+  return calculerDateReprise(fin, momentFin);
+}
