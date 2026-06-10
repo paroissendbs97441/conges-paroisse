@@ -14,11 +14,64 @@ function fr(s: string): string {
   return `${j}-${m}-${a}`;
 }
 
+// Génère l'ensemble des demi-journées occupées par une demande.
+// Format des créneaux : "AAAA-MM-JJ:M" (matin) et "AAAA-MM-JJ:A" (après-midi).
+function creneauxOccupes(date_debut: string, moment_debut: string, date_fin: string, moment_fin: string): Set<string> {
+  const set = new Set<string>();
+  const d0 = new Date(date_debut + "T00:00:00Z");
+  const d1 = new Date(date_fin + "T00:00:00Z");
+  if (d1 < d0) return set;
+  const ymd = (d: Date) => d.toISOString().slice(0, 10);
+  const memeJour = ymd(d0) === ymd(d1);
+
+  let cur = new Date(d0);
+  while (cur <= d1) {
+    const jour = ymd(cur);
+    const estPremier = jour === ymd(d0);
+    const estDernier = jour === ymd(d1);
+    let matin = true, aprem = true;
+    if (memeJour) {
+      matin = moment_debut !== "apresmidi";
+      aprem = moment_fin !== "matin";
+    } else {
+      if (estPremier) { matin = moment_debut !== "apresmidi"; aprem = true; }
+      else if (estDernier) { matin = true; aprem = moment_fin !== "matin"; }
+      else { matin = true; aprem = true; }
+    }
+    if (matin) set.add(`${jour}:M`);
+    if (aprem) set.add(`${jour}:A`);
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return set;
+}
+
 export async function POST(req: Request) {
   try {
     const sb = getSupabaseAdmin();
     const { salarie_id, type_conge_id, date_debut, moment_debut, date_fin,
       moment_fin, nb_jours, date_reprise, motif } = await req.json();
+
+    // Contrôle de chevauchement : on récupère les demandes ACTIVES du salarié
+    // (validée ou en attente ; on ignore refusée et annulée).
+    const { data: existantes } = await sb
+      .from("demandes")
+      .select("date_debut, moment_debut, date_fin, moment_fin, statut")
+      .eq("salarie_id", salarie_id)
+      .in("statut", ["en_attente", "validee"]);
+
+    const nouveaux = creneauxOccupes(date_debut, moment_debut, date_fin, moment_fin);
+    for (const ex of existantes ?? []) {
+      const dejaPris = creneauxOccupes(ex.date_debut, ex.moment_debut, ex.date_fin, ex.moment_fin);
+      for (const c of nouveaux) {
+        if (dejaPris.has(c)) {
+          const [jour] = c.split(":");
+          return NextResponse.json({
+            ok: false,
+            error: `Conflit : vous avez déjà un congé (validé ou en attente) qui couvre le ${fr(jour)}. Vérifiez vos dates et demi-journées.`,
+          }, { status: 400 });
+        }
+      }
+    }
 
     const { data: demande, error: errD } = await sb
       .from("demandes")
