@@ -23,8 +23,24 @@ export default function ActionPage() {
     const j = await res.json();
     setEnCours(false);
     setEtat("fini");
-    if (j.deja_traitee) setResultat("Cette demande a déjà été traitée par un autre approbateur.");
-    else if (j.ok && decision === "validee") setResultat("Demande validée. Les destinataires ont été notifiés par mail.");
+    if (j.deja_traitee) {
+      const fr = (s) => {
+        if (!s) return "";
+        const d = new Date(s);
+        const p = (n) => String(n).padStart(2, "0");
+        return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+      };
+      const statutTxt = j.statut === "validee" ? "Validé"
+        : j.statut === "refusee" ? "Refusé"
+        : j.statut === "annulee" ? "Annulé" : j.statut;
+      let m = "Cette demande a déjà été traitée";
+      if (j.resolu_le) m += ` le ${fr(j.resolu_le)}`;
+      if (j.valideur) m += ` par ${j.valideur}`;
+      m += `. Statut actuel : ${statutTxt}.`;
+      if (j.statut === "refusee" && j.motif_refus) m += ` Motif du refus : ${j.motif_refus}`;
+      setResultat(m);
+    }
+    else if (j.ok && decision === "validee") setResultat("Demande validée ✅. Les destinataires ont été notifiés par mail.");
     else if (j.ok) setResultat("Demande refusée. Les destinataires ont été notifiés par mail.");
     else setResultat("Erreur : " + (j.error ?? "inconnue"));
   }
