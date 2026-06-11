@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 import { useEffect, useState } from "react";
 import { getSupabase } from "../lib/supabaseClient";
-import { calculerNbJoursCases, calculerDateRepriseCases, validerDemande, SaisieDemi, definirJoursFeries } from "../lib/dateConges";
+import { calculerNbJoursCases, calculerDateRepriseCases, validerDemande, SaisieDemi, definirJoursFeries, definirModeConges } from "../lib/dateConges";
 
 function frDate(s: string): string {
   if (!s) return "—";
@@ -60,8 +60,8 @@ export default function Accueil() {
       if (!data.user) { window.location.href = "/login"; return; }
       setUser(data.user);
       charger(data.user.id);
-      getSupabase().from("profiles").select("nom_complet,poste,roles").eq("id", data.user.id).single()
-        .then(({ data: p }) => setProfil(p));
+      getSupabase().from("profiles").select("nom_complet,poste,roles,mode_conges").eq("id", data.user.id).single()
+        .then(({ data: p }) => { setProfil(p); definirModeConges(p?.mode_conges ?? "ouvres"); });
       getSupabase().from("soldes_lisibles").select("*").eq("salarie_id", data.user.id)
         .then(({ data: s }) => setSoldes(s ?? []));
       getSupabase().from("types_conges").select("*").then(({ data }) => setTypes(data ?? []));
