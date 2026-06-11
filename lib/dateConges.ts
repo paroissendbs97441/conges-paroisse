@@ -2,14 +2,35 @@
 // Calcul du nombre de jours ouvrés et de la date de reprise,
 // en tenant compte des week-ends, des jours fériés (Réunion) et des demi-journées.
 
-// ── Jours fériés de secours (la base Supabase les remplace au démarrage). ──
+// ── Jours fériés (à compléter chaque année). Format "AAAA-MM-JJ". ──
+// Inclut les fériés nationaux + le 20/12 (Abolition de l'esclavage, La Réunion).
 export const JOURS_FERIES: string[] = [
-  "2026-01-01", "2026-04-06", "2026-05-01", "2026-05-08", "2026-05-14",
-  "2026-05-25", "2026-07-14", "2026-08-15", "2026-11-01", "2026-11-11",
-  "2026-12-20", "2026-12-25",
-  "2027-01-01", "2027-03-29", "2027-05-01", "2027-05-06", "2027-05-08",
-  "2027-05-17", "2027-07-14", "2027-08-15", "2027-11-01", "2027-11-11",
-  "2027-12-20", "2027-12-25",
+  // 2026
+  "2026-01-01", // Jour de l'an
+  "2026-04-06", // Lundi de Pâques
+  "2026-05-01", // Fête du travail
+  "2026-05-08", // Victoire 1945
+  "2026-05-14", // Ascension
+  "2026-05-25", // Lundi de Pentecôte
+  "2026-07-14", // Fête nationale
+  "2026-08-15", // Assomption
+  "2026-11-01", // Toussaint
+  "2026-11-11", // Armistice
+  "2026-12-20", // Abolition de l'esclavage (La Réunion)
+  "2026-12-25", // Noël
+  // 2027
+  "2027-01-01",
+  "2027-03-29", // Lundi de Pâques 2027
+  "2027-05-01",
+  "2027-05-06", // Ascension 2027
+  "2027-05-08",
+  "2027-05-17", // Lundi de Pentecôte 2027
+  "2027-07-14",
+  "2027-08-15",
+  "2027-11-01",
+  "2027-11-11",
+  "2027-12-20",
+  "2027-12-25",
 ];
 
 type Moment = "journee" | "matin" | "apresmidi";
@@ -17,22 +38,32 @@ type Moment = "journee" | "matin" | "apresmidi";
 function ymd(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
-function estWeekend(d: Date): boolean {
-  const j = d.getUTCDay();
-  return j === 0 || j === 6;
+function estFerie(d: Date): boolean {
+  return FERIES_ACTIFS.includes(ymd(d));
 }
 
+// Liste effectivement utilisée par les calculs.
 let FERIES_ACTIFS: string[] = [...JOURS_FERIES];
 
+// Permet à l'app de fournir les jours fériés issus de la base.
 export function definirJoursFeries(dates: string[]) {
   if (dates && dates.length > 0) FERIES_ACTIFS = dates;
 }
 
-function estFerie(d: Date): boolean {
-  return FERIES_ACTIFS.includes(ymd(d));
+// Mode de décompte : "ouvres" (lun-ven) par défaut, ou "ouvrables" (lun-sam).
+let MODE_CONGES: "ouvres" | "ouvrables" = "ouvres";
+export function definirModeConges(mode: string) {
+  MODE_CONGES = mode === "ouvrables" ? "ouvrables" : "ouvres";
+}
+
+function estNonTravaille(d: Date): boolean {
+  const j = d.getUTCDay(); // dimanche=0, samedi=6
+  if (j === 0) return true; // dimanche jamais travaillé
+  if (j === 6) return MODE_CONGES === "ouvres"; // samedi : non travaillé seulement en mode ouvrés
+  return false;
 }
 function estOuvre(d: Date): boolean {
-  return !estWeekend(d) && !estFerie(d);
+  return !estNonTravaille(d) && !estFerie(d);
 }
 function ajouterJours(d: Date, n: number): Date {
   const r = new Date(d);
@@ -40,6 +71,7 @@ function ajouterJours(d: Date, n: number): Date {
   return r;
 }
 
+// Nombre de jours ouvrés de congé, demi-journées comprises.
 export function calculerNbJours(
   debut: string, momentDebut: Moment,
   fin: string, momentFin: Moment
@@ -67,6 +99,7 @@ export function calculerNbJours(
   return total;
 }
 
+// Date de reprise du travail (premier moment travaillé après le congé).
 export function calculerDateReprise(fin: string, momentFin: Moment): string {
   const dFin = new Date(fin + "T00:00:00Z");
   if (momentFin === "matin") return ymd(dFin);
@@ -97,7 +130,6 @@ export function validerDemande(
   if (!debut || !fin) return "Merci de renseigner les deux dates.";
   const dDebut = new Date(debut + "T00:00:00Z");
   const dFin = new Date(fin + "T00:00:00Z");
-  // La date de début doit être au plus tôt demain (pas de congé dans le passé ni le jour même)
   const aujourdhui = new Date();
   const demain = new Date(Date.UTC(aujourdhui.getFullYear(), aujourdhui.getMonth(), aujourdhui.getDate() + 1));
   if (dDebut < demain) return "La date de début doit être au plus tôt demain (pas de congé dans le passé ni le jour même).";
