@@ -12,6 +12,14 @@ function frDate(s: string): string {
   return `${j}-${m}-${a}`;
 }
 
+function libelleRole(role: string): string {
+  return ({
+    salarie: "Salarié", secretaire: "Secrétaire", benevole: "Bénévole",
+    comptable: "Comptable CPAE", cpae: "Membre CPAE", cure: "Curé",
+    vicaire: "Vicaire", diacre: "Diacre", admin: "Administrateur", invite: "Invité",
+  } as any)[role] ?? role;
+}
+
 export default function Accueil() {
   const [user, setUser] = useState<any>(null);
   const [profil, setProfil] = useState<any>(null);
@@ -52,7 +60,7 @@ export default function Accueil() {
       if (!data.user) { window.location.href = "/login"; return; }
       setUser(data.user);
       charger(data.user.id);
-      getSupabase().from("profiles").select("nom_complet,poste").eq("id", data.user.id).single()
+      getSupabase().from("profiles").select("nom_complet,poste,roles").eq("id", data.user.id).single()
         .then(({ data: p }) => setProfil(p));
       getSupabase().from("soldes_lisibles").select("*").eq("salarie_id", data.user.id)
         .then(({ data: s }) => setSoldes(s ?? []));
@@ -260,7 +268,7 @@ export default function Accueil() {
             </h1>
             {profil && (
               <div style={{ background: "#eff6ff", padding: "8px 12px", borderRadius: 6, marginTop: 6, fontSize: 14 }}>
-                Connecté : <b>{profil.nom_complet}</b>{profil.poste ? ` — ${profil.poste}` : ""}
+                Connecté : <b>{profil.nom_complet}</b>{(profil.roles && profil.roles.length > 0) ? ` — ${profil.roles.map(libelleRole).join(", ")}` : ""}{(profil.roles && profil.roles.includes("salarie") && profil.poste) ? ` — ${profil.poste}` : ""}
               </div>
             )}
           </div>
