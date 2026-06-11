@@ -35,7 +35,20 @@ export default function Accueil() {
   const [filtreMois, setFiltreMois] = useState("");
 
   useEffect(() => {
-    getSupabase().auth.getUser().then(({ data }) => {
+    async function initialiser() {
+      // SSO : si on arrive depuis l'intranet avec des jetons dans l'URL (#sso_at=...&sso_rt=...),
+      // on ouvre la session avec, puis on nettoie l'URL.
+      if (typeof window !== "undefined" && window.location.hash.includes("sso_at")) {
+        const params = new URLSearchParams(window.location.hash.slice(1));
+        const at = params.get("sso_at");
+        const rt = params.get("sso_rt");
+        if (at && rt) {
+          await getSupabase().auth.setSession({ access_token: at, refresh_token: rt });
+          window.history.replaceState(null, "", window.location.pathname);
+        }
+      }
+
+      const { data } = await getSupabase().auth.getUser();
       if (!data.user) { window.location.href = "/login"; return; }
       setUser(data.user);
       charger(data.user.id);
@@ -43,11 +56,12 @@ export default function Accueil() {
         .then(({ data: p }) => setProfil(p));
       getSupabase().from("soldes_lisibles").select("*").eq("salarie_id", data.user.id)
         .then(({ data: s }) => setSoldes(s ?? []));
-    });
-    getSupabase().from("types_conges").select("*").then(({ data }) => setTypes(data ?? []));
-    getSupabase().from("jours_feries").select("date_ferie").then(({ data }) => {
-      definirJoursFeries((data ?? []).map((f: any) => f.date_ferie));
-    });
+      getSupabase().from("types_conges").select("*").then(({ data }) => setTypes(data ?? []));
+      getSupabase().from("jours_feries").select("date_ferie").then(({ data }) => {
+        definirJoursFeries((data ?? []).map((f: any) => f.date_ferie));
+      });
+    }
+    initialiser();
   }, []);
 
   async function charger(uid: string) {
